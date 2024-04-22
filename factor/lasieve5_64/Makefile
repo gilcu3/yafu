@@ -180,18 +180,21 @@ gnfs-lasieve4eI%.o: gnfs-lasieve4e.c if.h primgen32.h asm/32bit.h redu2.h \
 	recurrence6.h fbgen.h real-poly-aux.h gmp-aux.h asm/medsched.h \
 	asm/siever-config.h lasieve-prepn.h input-poly.h asm/lasched.h \
 	strategy.h
+	@mkdir -p $(@D)
 	$(CC)  $(CFLAGS) -c -DI_bits=$* -o $@ $<
 
 gnfs-lasieve4fI%.o: gnfs-lasieve4f.c if.h primgen32.h asm/32bit.h redu2.h \
 	recurrence6.h fbgen.h real-poly-aux.h gmp-aux.h asm/medsched.h \
 	asm/siever-config.h lasieve-prepn.h input-poly.h asm/lasched.h \
 	strategy.h
+	@mkdir -p $(@D)
 	$(CC) -c -DI_bits=$* -o $@ $<
 
 gnfs-lasieve4gI%.o: gnfs-lasieve4g.c if.h primgen32.h asm/32bit.h redu2.h \
 	recurrence6.h fbgen.h real-poly-aux.h gmp-aux.h asm/medsched.h \
 	asm/siever-config.h lasieve-prepn.h input-poly.h asm/lasched.h \
 	strategy.h
+	@mkdir -p $(@D)
 	$(CC) -c -DI_bits=$* -o $@ $<
 
 libgmp-aux.a: gmp-aux.o mpz-ull.o
