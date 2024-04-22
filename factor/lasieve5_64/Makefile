@@ -114,7 +114,7 @@ SRCFILES=fbgen.c fbgen.h lasieve-prepn.c if.c la-cs.c gmp-aux.c mpz-ull.c \
 ASMDIRS=athlon64 generic
 
 list_asm_files = \
-	$(foreach file, $(shell $(MAKE) -s -C $(asm_dir) bup),$(asm_dir)/$(file))
+	$(foreach file, $(shell $(MAKE) -s -C $(asm_dir)),$(asm_dir)/$(file))
 
 ASMFILES=$(foreach asm_dir,$(ASMDIRS),$(list_asm_files))
 
@@ -214,21 +214,21 @@ gnfs-lasieve4I%e: gnfs-lasieve4eI%.o if.o input-poly.o libgmp-aux.a redu2.o \
 	primgen32.o lasieve-prepn.o pprime_p.o \
 	strategy.o ecm.o mpqs3.o pm1.o ../gmp-ecm/microecm.o ../gmp-ecm/micropm1.o tinyecm.o \
 	asm/liblasieve.a asm/liblasieveI%.a
-	$(CC) -o $@ $^ $(GMP_LIB) -lm
+	$(CC) -o bin/$@ $^ $(GMP_LIB) -lm
 
 gnfs-lasieve4I%f: gnfs-lasieve4fI%.o if.o input-poly-orig.o libgmp-aux.a redu2.o \
 	recurrence6.o fbgen.o fbgen64.o real-poly-aux.o mpqs.o \
 	primgen32.o lasieve-prepn.o pprime_p.o \
 	strategy.o ecm.o mpqs3.o pm1.o \
 	asm/liblasieve.a asm/liblasieveI%.a
-	$(CC) -o $@ $^ $(GMP_LIB) -lm
+	$(CC) -o bin/$@ $^ $(GMP_LIB) -lm
 
 gnfs-lasieve4I%g: gnfs-lasieve4gI%.o if.o input-poly-orig.o libgmp-aux.a redu2.o \
 	recurrence6.o fbgen.o fbgen64.o real-poly-aux.o mpqs.o \
 	primgen32.o primgen64.o lasieve-prepn.o pprime_p.o \
 	strategy.o ecm.o mpqs3.o pm1.o td.o \
 	asm/liblasieve.a asm/liblasieveI%.a
-	$(CC) -o $@ $^ $(GMP_LIB) -lm
+	$(CC) -o bin/$@ $^ $(GMP_LIB) -lm
 
 mpqsz.o: mpqs.c asm/mpqs-config.h
 	$(CC) -O2 -DMPQS_STAT -DMPQS_ZEIT -c -o $@ $<
@@ -285,8 +285,8 @@ pm1stat: pm1stat.o pm1z.o if.o asm/liblasieve.a
 lasieve5.tgz: Makefile paths INSTALL.and.USE COPYING $(SRCFILES) $(ASMFILES)
 	tar cvO $^ | gzip --best --stdout > $@
 
-clean:
+realclean:
 	rm -f *.o *.a asm/*.o asm/*.a asm/*.s asm/*.S
 
-binclean: realclean
-	rm -f gnfs-lasieve4I1* forumexs/*.out readmeex/*.gz
+clean: realclean
+	rm -f bin/gnfs-lasieve4I1* forumexs/*.out readmeex/*.gz

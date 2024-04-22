@@ -352,7 +352,7 @@ endif
 
 #---------------------------Make Targets -------------------------
 
-yafu: $(MSIEVE_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
+yafu: $(MSIEVE_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) nfs
 	rm -f libysiqs.a
 	ar r libysiqs.a $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_OBJS) 
 	ranlib libysiqs.a
@@ -363,6 +363,7 @@ yafu: $(MSIEVE_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU_ECM_
 	ar r libynfs.a $(YAFU_NFS_OBJS) $(YAFU_COMMON_OBJS)
 	ranlib libynfs.a
 	$(CC) $(CFLAGS) $(YAFU_OBJS) -o $(BINNAME) -lysiqs  -lyecm  -lynfs $(LIBS) 
+	
 
 siqs: $(MSIEVE_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(SIQS_BIN_OBJS) 
 	rm -f libysiqs.a
@@ -376,8 +377,15 @@ ecm: $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) $(ECM_BIN_OBJS)
 	ranlib libyecm.a
 	$(CC) $(CFLAGS) $(ECM_BIN_OBJS) -o ecm_demo -libyecm.a  $(LIBS)
 
+
+nfs:
+ifeq ($(NFS),1)
+	make -C factor/lasieve5_64/
+endif
+
 clean:
 	rm -f $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
+	make -C factor/lasieve5_64/ clean
 
 #---------------------------Build Rules -------------------------
 
