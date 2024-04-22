@@ -180,21 +180,18 @@ gnfs-lasieve4eI%.o: gnfs-lasieve4e.c if.h primgen32.h asm/32bit.h redu2.h \
 	recurrence6.h fbgen.h real-poly-aux.h gmp-aux.h asm/medsched.h \
 	asm/siever-config.h lasieve-prepn.h input-poly.h asm/lasched.h \
 	strategy.h
-	@mkdir -p $(@D)
 	$(CC)  $(CFLAGS) -c -DI_bits=$* -o $@ $<
 
 gnfs-lasieve4fI%.o: gnfs-lasieve4f.c if.h primgen32.h asm/32bit.h redu2.h \
 	recurrence6.h fbgen.h real-poly-aux.h gmp-aux.h asm/medsched.h \
 	asm/siever-config.h lasieve-prepn.h input-poly.h asm/lasched.h \
 	strategy.h
-	@mkdir -p $(@D)
 	$(CC) -c -DI_bits=$* -o $@ $<
 
 gnfs-lasieve4gI%.o: gnfs-lasieve4g.c if.h primgen32.h asm/32bit.h redu2.h \
 	recurrence6.h fbgen.h real-poly-aux.h gmp-aux.h asm/medsched.h \
 	asm/siever-config.h lasieve-prepn.h input-poly.h asm/lasched.h \
 	strategy.h
-	@mkdir -p $(@D)
 	$(CC) -c -DI_bits=$* -o $@ $<
 
 libgmp-aux.a: gmp-aux.o mpz-ull.o
@@ -217,6 +214,7 @@ gnfs-lasieve4I%e: gnfs-lasieve4eI%.o if.o input-poly.o libgmp-aux.a redu2.o \
 	primgen32.o lasieve-prepn.o pprime_p.o \
 	strategy.o ecm.o mpqs3.o pm1.o ../gmp-ecm/microecm.o ../gmp-ecm/micropm1.o tinyecm.o \
 	asm/liblasieve.a asm/liblasieveI%.a
+	@mkdir -p bin/
 	$(CC) -o bin/$@ $^ $(GMP_LIB) -lm
 
 gnfs-lasieve4I%f: gnfs-lasieve4fI%.o if.o input-poly-orig.o libgmp-aux.a redu2.o \
@@ -224,6 +222,7 @@ gnfs-lasieve4I%f: gnfs-lasieve4fI%.o if.o input-poly-orig.o libgmp-aux.a redu2.o
 	primgen32.o lasieve-prepn.o pprime_p.o \
 	strategy.o ecm.o mpqs3.o pm1.o \
 	asm/liblasieve.a asm/liblasieveI%.a
+	@mkdir -p bin/
 	$(CC) -o bin/$@ $^ $(GMP_LIB) -lm
 
 gnfs-lasieve4I%g: gnfs-lasieve4gI%.o if.o input-poly-orig.o libgmp-aux.a redu2.o \
@@ -231,6 +230,7 @@ gnfs-lasieve4I%g: gnfs-lasieve4gI%.o if.o input-poly-orig.o libgmp-aux.a redu2.o
 	primgen32.o primgen64.o lasieve-prepn.o pprime_p.o \
 	strategy.o ecm.o mpqs3.o pm1.o td.o \
 	asm/liblasieve.a asm/liblasieveI%.a
+	@mkdir -p bin/
 	$(CC) -o bin/$@ $^ $(GMP_LIB) -lm
 
 mpqsz.o: mpqs.c asm/mpqs-config.h
