@@ -13,3 +13,4 @@ cadoWorkdir
 *.optrpt
 *.obj
 *.tlog
+*.json
