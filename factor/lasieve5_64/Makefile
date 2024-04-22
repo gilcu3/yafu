@@ -11,34 +11,23 @@
 #CFLAGS= -DGATHER_STAT -DDEBUG -g
 #else
 
-# SMJS various ones I've used
-
-# For gcc installed using brew on osx 10.9 (note -Wa,-q which specifies using clang as rather than system one)
-#CFLAGS= -m64 -Ofast -march=native -fomit-frame-pointer -funroll-loops -I/Users/searle/progs/ensc-dependencies/include -Wa,-q
-#CFLAGS= -m64 -Ofast -march=corei7 -mtune=corei7 -I/Users/searle/progs/ensc-dependencies/include -Wa,-q
 
 # windows one
-#CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Wno-unused-but-set-variable -Ofast -fomit-frame-pointer -march=corei7 -mtune=corei7 -funroll-loops -Ic:/users/steve/progs/local/include 
+#CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Wno-unused-but-set-variable -Ofast -fomit-frame-pointer -march=corei7 -mtune=corei7 -funroll-loops
 
 # linux
-CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast -fomit-frame-pointer -march=native -funroll-loops  \
-	-I../../../gmp_install/gmp-6.2.0/include -I../../include -fcommon
+CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast \
+-fomit-frame-pointer -march=native -funroll-loops  -I../../include -fcommon
 
 #clang
-#CFLAGS= -Wall -Wno-unused-variable -Wno-unused-function -Ofast -march=native -I/Users/searle/progs/ensc-dependencies/include
+#CFLAGS= -Wall -Wno-unused-variable -Wno-unused-function -Ofast
 #clang for profiling
-#CFLAGS= -O1 -g -march=native -I/Users/searle/progs/ensc-dependencies/include
+#CFLAGS= -O1 -g -march=native
 
 #endif
 
 
-GMP_LIB=-L../../../gmp_install/gmp-6.2.0/include/lib -lgmp
-#For windows
-#GMP_LIB=-Lc:/Users/steve/progs/local/lib -lgmp -lws2_32
-#Using brew installed gmp
-#GMP_LIB=-L/usr/local/Cellar/gmp4/4.3.2/lib -lgmp
-#orig
-#GMP_LIB=/home/franke/itanium-bin/libgmp.a
+GMP_LIB=-lgmp
 
 include paths
 
@@ -122,7 +111,7 @@ SRCFILES=fbgen.c fbgen.h lasieve-prepn.c if.c la-cs.c gmp-aux.c mpz-ull.c \
 	../gmp-ecm/micropm1.c pprime_p.c pm1.[ch] pm1test.c pm1stat.c gnfs-lasieve4f.w
 
 
-ASMDIRS=athlon athlon64 piii generic xeon64
+ASMDIRS=athlon64 generic
 
 list_asm_files = \
 	$(foreach file, $(shell $(MAKE) -s -C $(asm_dir) bup),$(asm_dir)/$(file))
