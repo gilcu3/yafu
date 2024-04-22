@@ -19,7 +19,6 @@
 
 CC = gcc
 CFLAGS = -g -m64 -std=gnu99 -DUSE_SSE2 -fno-common
-#CFLAGS += -march=core2 -mtune=core2
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O2
 
@@ -33,18 +32,12 @@ OBJ_EXT = .o
 INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -Ifactor/gmp-ecm  
 LIBS = -L. 
 
-# we require additional search directories for msieve, zlib, gmp, gmp-ecm, 
+# we require additional search directories for msieve, zlib, 
 # ytools, and ysieve for libraries and headers.  By default, we look
 # adjacent to the yafu folder (i.e., ../ysieve, ../ytools, etc.).  Change
 # these if your installation locations differ.
 INC += -I../ysieve -I../ytools
 LIBS += -L../ysieve/ -L../ytools/
-
-INC += -I../gmp-install/6.2.1/include
-LIBS += -L../gmp-install/6.2.1/lib
-
-INC += -I../ecm-install/7.0.6/include/
-LIBS += -L../ecm-install/7.0.6/lib/
 
 INC += -I../msieve/zlib 
 LIBS += -L../msieve/
@@ -146,8 +139,6 @@ ifeq ($(FORCE_GENERIC),1)
 	CFLAGS += -DFORCE_GENERIC
 endif
 
-# make sure we get the correct libgmp linked by using an absolute path
-#LIBS += -lecm /users/buhrow/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a -lytools -lysieve
 LIBS += -lecm -lgmp -lytools -lysieve
 
 ifeq ($(SKYLAKEX),1)
@@ -390,10 +381,6 @@ clean:
 
 #---------------------------Build Rules -------------------------
 
-#%$(OBJ_EXT): %.c $(SIQS_BIN_HEAD) $(COMMON_HEAD) $(NFS_HEAD) $(ECM_HEAD) $(YAFU_HEAD) $(SIQS_HEAD)
-#	$(CC) $(CFLAGS) -c -o $@ $<
-#
-#
 
 %$(OBJ_EXT): %.c $(COMMON_HEAD)
 	$(CC) $(CFLAGS) -c -o $@ $<
