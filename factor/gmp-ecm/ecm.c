@@ -73,6 +73,76 @@ DWORD WINAPI ecm_worker_thread_main(LPVOID thread_data);
 void* ecm_worker_thread_main(void* thread_data);
 #endif
 
+void split_residue_file(int curves_run, int nthreads, char *base_filename)
+{
+    // prefer-gmpecm-stg2 works by calling the external gmp-ecm
+            // with -resume.  With multiple threads we need to split this
+            // file into multiple files so that each thread can work
+            // with a subset of the curves.
+    int i, j;
+    int curves_per_thread = curves_run / nthreads;
+    
+    if ((curves_run % nthreads) > 0)
+    {
+        curves_per_thread++;
+    }
+    char fname_in[80];
+    sprintf(fname_in, "%s.txt", base_filename);
+    FILE* fid = fopen(fname_in, "r");
+    fid = fopen(fname_in, "r");
+    if (fid != NULL)
+    {
+        char fname[80];
+
+        printf("ecm: Found %d curves in %s.txt\n"
+            "ecm: assigning %d curves per gmp-ecm thread for stage 2\n",
+            curves_run, base_filename, curves_per_thread);
+
+        for (i = 0; i < nthreads - 1; i++)
+        {
+            // note, dealing the lines out like cards, one at
+            // a time to N files, will balance the load better.
+            // but it requires having N files open at once.  Maybe 
+            // it's not a big deal but that makes me nervous somehow.
+            // so we do it one file at a time with a good-enough
+            // load balancing.
+            sprintf(fname, "%s_%d.txt", base_filename, i);
+            FILE* fid_out = fopen(fname, "w");
+            for (j = 0; j < curves_per_thread; j++)
+            {
+                // need the ability to parse an arbitrary length line
+                char line[8192];
+                if ((fgets(line, 8192, fid) == NULL) || feof(fid))
+                {
+                    printf("expected more lines in %s.txt\n", base_filename);
+                    break;
+                }
+                fputs(line, fid_out);
+            }
+            fclose(fid_out);
+        }
+        sprintf(fname, "%s_%d.txt", base_filename, i);
+        FILE* fid_out = fopen(fname, "w");
+        while (!feof(fid))
+        {
+            char line[8192];
+            if ((fgets(line, 8192, fid) == NULL) || feof(fid))
+            {
+                break;
+            }
+            fputs(line, fid_out);
+        }
+        fclose(fid_out);
+        fclose(fid);
+    }
+    else
+    {
+        printf("could not open %s.txt to resume with gmp-ecm stage 2\n", base_filename);
+        curves_per_thread = 0;
+    }
+
+    return;
+}
 
 void ecm_sync_fcn(void *ptr)
 {
@@ -124,6 +194,7 @@ void ecm_sync_fcn(void *ptr)
         fflush(stdout);
     }
 
+    // deal with a factor found
     if (thread_data->factor_found == 1)
     {
         // since we could be doing many curves in parallel,
@@ -338,6 +409,66 @@ int ecm_loop(fact_obj_t *fobj)
 
         free(tpool_data);
 
+        // In the instance where we run gpu-ecm, only stage 1 is performed and a
+        // residue file is created.  In this case we run a threaded stage 2 by
+        // splitting up the residue file and resuming with the subsequent files.
+        if ((fobj->ecm_obj.use_gpuecm) && (fobj->ecm_obj.B1 > fobj->ecm_obj.ecm_ext_xover))
+        {
+            // do stage 2 after the gpu stage 1 run
+
+            // split the residue file into one file per thread
+            if (fobj->VFLAG > 0)
+            {
+                printf("ecm: splitting %u curves to resume with %d threads\n",
+                    thread_data->fobj->ecm_obj.num_curves, fobj->THREADS);
+            }
+            split_residue_file(thread_data->fobj->ecm_obj.num_curves, 
+                fobj->THREADS, "gpu_ecm_resume");
+
+            // now archive the resume file
+            {
+                time_t rawtime;
+                struct tm* info;
+                time(&rawtime);
+                info = localtime(&rawtime);
+
+                char destfile[80];
+
+                sprintf(destfile, "gpu_ecm_resume_%d_%d_%d_%d.txt",
+                    info->tm_mon, info->tm_mday, info->tm_year + 1900,
+                    info->tm_hour * 3600 + info->tm_min * 60 + info->tm_sec);
+                // archive the resume file
+                rename("gpu_ecm_resume.txt", destfile);
+            }
+
+            for (i = 0; i < fobj->THREADS; i++)
+            {
+                // several things in the thread structure need to be tied
+                // to one master copy for syncronization purposes.
+                // there should maybe be a separate field in the threadpool
+                // structure for this...
+                // e.g. user_data and user_shared_data structures
+                thread_data[i].fobj = fobj;
+                thread_data[i].thread_num = i;  // todo: remove and replace with tpool->tindex
+                thread_data[i].total_curves_run = &total_curves_run;
+                thread_data[i].total_time = &total_time;
+                thread_data[i].factor_found = 0;
+                thread_data[i].ok_to_stop = &bail;
+                thread_data[i].curves_in_flight = &curves_in_flight;
+                thread_data[i].resume_avx_ecm = 2;
+            }
+
+            tpool_data = tpool_setup(fobj->THREADS, &ecm_start_fcn, &ecm_stop_fcn, &ecm_sync_fcn,
+                &ecm_dispatch_fcn, thread_data);
+
+            total_curves_run = 0;
+            tpool_add_work_fcn(tpool_data, &ecm_do_one_curve);
+            tpool_go(tpool_data);
+
+            free(tpool_data);
+
+        }
+
         if (fobj->VFLAG >= 0)
             printf("\n");
 
@@ -380,12 +511,17 @@ int ecm_loop(fact_obj_t *fobj)
     //
     //if (run_avxecm || fobj->ecm_obj.prefer_avxecm_stg2)
     {
+        // if we are not running gmp-ecm (either internal or external),
+        // then we are running avx-ecm.  At least for stage 1.
         mpz_t F;
         int numfactors = 0;
         uint64_t B2;
         uint32_t curves_run;
         int save_b1 = fobj->ecm_obj.save_b1;
         uint64_t ecm_ext_xover;
+        
+        mpz_init(F);
+        mpz_set(F, fobj->ecm_obj.gmp_n);
 
         if (fobj->ecm_obj.stg2_is_default)
         {
@@ -406,8 +542,13 @@ int ecm_loop(fact_obj_t *fobj)
             // i.e., develop the ability to convert into avx-ecm's parameterization.
         }
 
-        if (fobj->ecm_obj.prefer_gmpecm_stg2)
+        if ((fobj->ecm_obj.prefer_gmpecm_stg2)) // && (fobj->ecm_obj.B1 >= fobj->ecm_obj.ecm_ext_xover))
         {
+            if (fobj->VFLAG >= 0)
+            {
+                printf("ecm: prefer_gmpecm_stg2 specified... stage 2 curves will run "
+                    "after all stage 1 curves have completed\n");
+            }
             save_b1 = 2;
             B2 = fobj->ecm_obj.B1;
             ecm_ext_xover = fobj->ecm_obj.ecm_ext_xover;
@@ -418,10 +559,23 @@ int ecm_loop(fact_obj_t *fobj)
             B2, fobj->THREADS, &numfactors, fobj->VFLAG, save_b1,
             &curves_run);
 
-        if (fobj->ecm_obj.prefer_gmpecm_stg2)
+        if ((fobj->ecm_obj.prefer_gmpecm_stg2) && 
+            (mpz_cmp_ui(fobj->ecm_obj.gmp_n, 1) > 0)) // && (fobj->ecm_obj.B1 >= fobj->ecm_obj.ecm_ext_xover))
         {
-            // now resume each curve with gmp-ecm
+            if ((bail_on_factor == 1) && (mpz_cmp(F, fobj->ecm_obj.gmp_n) != 0))
+            {
+                printf("ecm: stop after one factor specified... skipping gmp-ecm stage 2\n");
+            }
+            // this is similar to the gpu-ecm use case, where we've
+            // just done stage 1 with avx-ecm that created a residue file.
+            // the residue file is split for a multi-threaded stage 2 using
+            // gmp-ecm.
+            // timing variables
+            struct timeval stg2start;	// stop time of this job
+            struct timeval stg2stop;	// start time of this job
+            double stg2time;
 
+            gettimeofday(&stg2start, NULL);
 
             // initialize the flag to watch for interrupts, and set the
             // pointer to the function to call if we see a user interrupt
@@ -432,6 +586,26 @@ int ecm_loop(fact_obj_t *fobj)
             ecm_process_init(fobj);
 
             thread_data = (ecm_thread_data_t*)malloc(fobj->THREADS * sizeof(ecm_thread_data_t));
+            
+            // split the residue file into one file per thread
+            split_residue_file(curves_run, fobj->THREADS, "avx_ecm_resume");
+
+            // now archive the resume file
+            {
+                time_t rawtime;
+                struct tm* info;
+                time(&rawtime);
+                info = localtime(&rawtime);
+
+                char destfile[80];
+
+                sprintf(destfile, "avx_ecm_resume_%d_%d_%d_%d.txt",
+                    info->tm_mon, info->tm_mday, info->tm_year + 1900,
+                    info->tm_hour * 3600 + info->tm_min * 60 + info->tm_sec);
+                // archive the resume file
+                rename("avx_ecm_resume.txt", destfile);
+            }
+
             for (i = 0; i < fobj->THREADS; i++)
             {
                 // several things in the thread structure need to be tied
@@ -487,6 +661,15 @@ int ecm_loop(fact_obj_t *fobj)
             ecm_process_free(fobj);
 
             fobj->ecm_obj.ecm_ext_xover = ecm_ext_xover;
+
+            gettimeofday(&stg2stop, NULL);
+            stg2time = ytools_difftime(&stg2start, &stg2stop);
+            
+            if (fobj->VFLAG >= 0)
+            {
+                printf("ecm: total stage2 elasped time = %1.2f\n", stg2time);
+            }
+
         }
 
         // this is how we tell factor() to stop running curves at this level
@@ -499,6 +682,8 @@ int ecm_loop(fact_obj_t *fobj)
         {
             total_curves_run = curves_run;
         }
+
+        mpz_clear(F);
 
     }
 
@@ -566,7 +751,7 @@ int ecm_get_sigma(ecm_thread_data_t *thread_data)
 	if (fobj->ecm_obj.sigma != 0)
 	{
 		//if (thread_data->curves_run == 0 &&  fobj->ecm_obj.num_curves > 1)
-	//		printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
+	    //		printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
 		thread_data->sigma = fobj->ecm_obj.sigma;
 	}
 	else //if (get_uvar("sigma",tmp))
@@ -689,7 +874,8 @@ void ecm_process_init(fact_obj_t *fobj)
             {
                 if (fobj->VFLAG >= 2)
                 {
-                    printf("GMP-ECM does not support multiple threads... running single threaded\n");
+                    printf("internal version of GMP-ECM (%f) does not support "
+                        "multiple threads... running single threaded\n", ver);
                 }
                 fobj->THREADS = 1;
             }
@@ -827,9 +1013,11 @@ void *ecm_do_one_curve(void *ptr)
 
         // todo: add command line input of arbitrary argument string to append to this command
 		// build system command
-        if (thread_data->resume_avx_ecm)
+        if (thread_data->resume_avx_ecm == 1)
         {
-            fid = fopen("avx_ecm_resume.txt", "r");
+            char fname[80];
+            sprintf(fname, "avx_ecm_resume_%d.txt", thread_data->thread_num);
+            fid = fopen(fname, "r");
             if (fid != NULL)
             {
                 fclose(fid);
@@ -837,10 +1025,34 @@ void *ecm_do_one_curve(void *ptr)
                 //char exename[1024];
                 //GetModuleFileName(NULL, exename, 1024);
 
+                sprintf(cmd, "echo %s | %s -resume `pwd`/avx_ecm_resume_%d.txt %u | tee %s\n",
+                    tmpstr, fobj->ecm_obj.ecm_path, thread_data->thread_num, 
+                    fobj->ecm_obj.B1, thread_data->tmp_output);
+            }
+            else
+            {
+                thread_data->curves_run++;
+                free(tmpstr);
+                free(cmd);
+                return;
+            }
+        }
+        else if (thread_data->resume_avx_ecm == 2)
+        {
+            // resume a gpu run
+            char fname[80];
+            sprintf(fname, "gpu_ecm_resume_%d.txt", thread_data->thread_num);
+            fid = fopen(fname, "r");
+            if (fid != NULL)
+            {
+                fclose(fid);
 
-                sprintf(cmd, "echo %s | %s -resume `pwd`/avx_ecm_resume.txt %u | tee %s\n",
-                    tmpstr, fobj->ecm_obj.ecm_path, fobj->ecm_obj.B1,
-                    thread_data->tmp_output);
+                //char exename[1024];
+                //GetModuleFileName(NULL, exename, 1024);
+
+                sprintf(cmd, "echo %s | %s -resume `pwd`/gpu_ecm_resume_%d.txt %u | tee %s\n",
+                    tmpstr, fobj->ecm_obj.ecm_path, thread_data->thread_num,
+                    fobj->ecm_obj.B1, thread_data->tmp_output);
             }
             else
             {
@@ -897,16 +1109,16 @@ void *ecm_do_one_curve(void *ptr)
 
                 if (fobj->VFLAG >= 0)
                 {
-                    sprintf(cmd, "echo %s | %s -sigma 3:%u -gpu %s %s %s %u %s | tee %s\n",
+                    sprintf(cmd, "echo %s | %s -sigma 3:%u -save gpu_ecm_resume.txt -gpu %s %s %s %u %u | tee %s\n",
                         tmpstr, fobj->ecm_obj.ecm_path, thread_data->sigma,
-                        cgbn, gpudev, gpucurves, fobj->ecm_obj.B1, stg2, 
+                        cgbn, gpudev, gpucurves, fobj->ecm_obj.B1, 1,
                         thread_data->tmp_output);
                 }
                 else
                 {
-                    sprintf(cmd, "echo %s | %s -sigma 3:%u -gpu %s %s %s %u %s > %s\n",
+                    sprintf(cmd, "echo %s | %s -sigma 3:%u -save gpu_ecm_resume.txt -gpu %s %s %s %u %u > %s\n",
                         tmpstr, fobj->ecm_obj.ecm_path, thread_data->sigma,
-                        cgbn, gpudev, gpucurves, fobj->ecm_obj.B1, stg2,
+                        cgbn, gpudev, gpucurves, fobj->ecm_obj.B1, 1,
                         thread_data->tmp_output);
                 }
             }
@@ -919,17 +1131,20 @@ void *ecm_do_one_curve(void *ptr)
         }
 
 		// run system command
-        //printf("ecm: syscmd is = %s", cmd);
-
-        if (fobj->ecm_obj.use_gpuecm)
+        if ((fobj->ecm_obj.use_gpuecm) && (thread_data->resume_avx_ecm == 0))
         {
+            // run stage 1 on the gpu
             if (thread_data->thread_num == 0)
             {
+                //printf("ecm: gpu-ecm syscmd in thread %d is = %s\n", 
+                //    thread_data->thread_num, cmd);
                 retcode = system(cmd);
             }
         } 
         else
         {
+            //printf("ecm: syscmd in thread %d is = %s\n",
+            //    thread_data->thread_num, cmd);
             retcode = system(cmd);
         }
 
@@ -962,7 +1177,6 @@ void *ecm_do_one_curve(void *ptr)
                     thread_data->curves_run += (curves - 1);
                     found_curves_run = 1;
                 }
-
             }
 
 			ptr = strstr(line, "**********");
@@ -987,19 +1201,18 @@ void *ecm_do_one_curve(void *ptr)
 		}
         if (fid != NULL) fclose(fid);
 
-        if (thread_data->resume_avx_ecm)
+        if (thread_data->resume_avx_ecm == 1)
         {
-            time_t rawtime;
-            struct tm* info;
-            time(&rawtime);
-            info = localtime(&rawtime);
+            char fname[80];
+            sprintf(fname, "avx_ecm_resume_%d.txt", thread_data->thread_num);
+            remove(fname);
+        }
 
-            char destfile[80];
-
-            sprintf(destfile, "avx_ecm_resume_%d_%d_%d.txt", 
-                info->tm_mon, info->tm_mday, info->tm_year + 1900);
-            // archive the resume file
-            rename("avx_ecm_resume.txt", destfile);
+        if (thread_data->resume_avx_ecm == 2)
+        {
+            char fname[80];
+            sprintf(fname, "gpu_ecm_resume_%d.txt", thread_data->thread_num);
+            remove(fname);
         }
 	}
 
