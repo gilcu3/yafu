@@ -16,7 +16,7 @@
 #CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Wno-unused-but-set-variable -Ofast -fomit-frame-pointer -march=corei7 -mtune=corei7 -funroll-loops
 
 # linux
-CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast \
+CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Wno-error=implicit-function-declaration  -Ofast \
 -fomit-frame-pointer -march=native -funroll-loops  -I../../include -fcommon
 
 #clang
@@ -31,7 +31,7 @@ GMP_LIB=-lgmp
 
 include paths
 
-CC=gcc  $(CFLAGS)
+CC=gcc
 #CC=gcc-4.9  $(CFLAGS)
 #CC=clang  $(CFLAGS)
 
@@ -186,13 +186,13 @@ gnfs-lasieve4fI%.o: gnfs-lasieve4f.c if.h primgen32.h asm/32bit.h redu2.h \
 	recurrence6.h fbgen.h real-poly-aux.h gmp-aux.h asm/medsched.h \
 	asm/siever-config.h lasieve-prepn.h input-poly.h asm/lasched.h \
 	strategy.h
-	$(CC) -c -DI_bits=$* -o $@ $<
+	$(CC) $(CFLAGS) -c -DI_bits=$* -o $@ $<
 
 gnfs-lasieve4gI%.o: gnfs-lasieve4g.c if.h primgen32.h asm/32bit.h redu2.h \
 	recurrence6.h fbgen.h real-poly-aux.h gmp-aux.h asm/medsched.h \
 	asm/siever-config.h lasieve-prepn.h input-poly.h asm/lasched.h \
 	strategy.h
-	$(CC) -c -DI_bits=$* -o $@ $<
+	$(CC) $(CFLAGS) -c -DI_bits=$* -o $@ $<
 
 libgmp-aux.a: gmp-aux.o mpz-ull.o
 	$(AR) rcs $@ $^

@@ -18,8 +18,8 @@
 # ----------------------------------------------------------------------*/
 
 CC = gcc
-CFLAGS = -g -m64 -std=gnu99 -DUSE_SSE2 -fno-common
-WARN_FLAGS = -Wall # -Wconversion
+CFLAGS = -g -m64 -march=native -std=gnu99 -fno-common  
+WARN_FLAGS = -Wall -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types -Wno-error=return-mismatch # -Wconversion
 OPT_FLAGS = -O2
 
 BINNAME = yafu
@@ -29,7 +29,7 @@ OBJ_EXT = .o
 
 # standard search directories for headers/libraries within yafu.
 # These should normally not be modified.
-INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -Ifactor/gmp-ecm  
+INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -Ifactor/gmp-ecm -I../ysieve -I../ytools -I../msieve/zlib
 LIBS = -L. 
 
 # we require additional search directories for msieve, zlib, 
